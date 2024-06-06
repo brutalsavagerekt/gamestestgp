@@ -3930,6 +3930,36 @@ err)}}};
 
 {
 self["C3_Shaders"] = {};
+self["C3_Shaders"]["bulge"] = {
+	glsl: "varying mediump vec2 vTex;\nuniform lowp sampler2D samplerFront;\nuniform mediump vec2 srcOriginStart;\nuniform mediump vec2 srcOriginEnd;\nuniform mediump float radius;\nuniform mediump float scale;\nvoid main(void)\n{\nmediump vec2 srcOriginSize = srcOriginEnd - srcOriginStart;\nmediump vec2 tex = (vTex - srcOriginStart) / srcOriginSize;\nmediump float dist = distance(vec2(0.5, 0.5), tex);\ntex -= vec2(0.5, 0.5);\nif (dist < radius)\n{\nmediump float percent = 1.0 - ((radius - dist) / radius) * scale;\npercent = percent * percent;\ntex = tex * percent;\n}\ntex += vec2(0.5, 0.5);\ntex = clamp(tex, 0.0, 1.0);\t\t\t// ensure no sampling outside source rect\ntex = (tex * srcOriginSize) + srcOriginStart;\t// convert back relative to source rect\ngl_FragColor = texture2D(samplerFront, tex);\n}",
+	glslWebGL2: "",
+	wgsl: "%%SAMPLERFRONT_BINDING%% var samplerFront : sampler;\n%%TEXTUREFRONT_BINDING%% var textureFront : texture_2d<f32>;\nstruct ShaderParams {\nradius : f32,\nscale : f32\n};\n%%SHADERPARAMS_BINDING%% var<uniform> shaderParams : ShaderParams;\n%%C3PARAMS_STRUCT%%\n%%C3_UTILITY_FUNCTIONS%%\n%%FRAGMENTINPUT_STRUCT%%\n%%FRAGMENTOUTPUT_STRUCT%%\n@fragment\nfn main(input : FragmentInput) -> FragmentOutput\n{\nvar tex : vec2<f32> = c3_srcOriginToNorm(input.fragUV);\nvar dist : f32 = distance(vec2<f32>(0.5, 0.5), tex);\ntex = tex - 0.5;\nif (dist < shaderParams.radius)\n{\nvar percent : f32 = 1.0 - ((shaderParams.radius - dist) / shaderParams.radius) * shaderParams.scale;\npercent = percent * percent;\ntex = tex * percent;\n}\ntex = tex + 0.5;\ntex = c3_clamp2(tex, 0.0, 1.0);\t\t// ensure no sampling outside source rect\ntex = c3_normToSrcOrigin(tex);\t\t// convert back relative to source rect\nvar output : FragmentOutput;\noutput.color = textureSample(textureFront, samplerFront, tex);\nreturn output;\n}",
+	blendsBackground: false,
+	usesDepth: false,
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: false,
+	mustPreDraw: false,
+	preservesOpaqueness: false,
+	supports3dDirectRendering: false,
+	animated: false,
+	parameters: [["radius",0,"percent"],["scale",0,"percent"]]
+};
+self["C3_Shaders"]["warpripple"] = {
+	glsl: "#ifdef GL_FRAGMENT_PRECISION_HIGH\n#define highmedp highp\n#else\n#define highmedp mediump\n#endif\nvarying mediump vec2 vTex;\nuniform lowp sampler2D samplerFront;\nuniform mediump vec2 srcStart;\nuniform mediump vec2 srcEnd;\nuniform mediump vec2 srcOriginStart;\nuniform mediump vec2 srcOriginEnd;\nuniform highmedp float seconds;\nuniform mediump vec2 pixelSize;\nuniform mediump float freq;\nuniform mediump float amp;\nuniform mediump float speed;\nconst mediump float PI = 3.1415926;\nvoid main(void)\n{\nmediump vec2 srcOriginSize = srcOriginEnd - srcOriginStart;\nmediump vec2 tex = (vTex - srcOriginStart) / srcOriginSize;\ntex = tex * 2.0 - 1.0;\nmediump float d = length(tex);\nmediump float a = atan(tex.y, tex.x);\nd += sin((d * 2.0 * PI) * freq / (pixelSize.x * 750.0) + (seconds * speed)) * amp * (pixelSize.x * 750.0);\ntex.x = cos(a) * d;\ntex.y = sin(a) * d;\ntex = (tex + 1.0) / 2.0;\ntex = tex * srcOriginSize + srcOriginStart;\ntex = clamp(tex, min(srcStart, srcEnd), max(srcStart, srcEnd));\ngl_FragColor = texture2D(samplerFront, tex);\n}",
+	glslWebGL2: "",
+	wgsl: "%%SAMPLERFRONT_BINDING%% var samplerFront : sampler;\n%%TEXTUREFRONT_BINDING%% var textureFront : texture_2d<f32>;\nstruct ShaderParams {\nfreq : f32,\namp : f32,\nspeed : f32\n};\n%%SHADERPARAMS_BINDING%% var<uniform> shaderParams : ShaderParams;\n%%C3PARAMS_STRUCT%%\n%%C3_UTILITY_FUNCTIONS%%\n%%FRAGMENTINPUT_STRUCT%%\n%%FRAGMENTOUTPUT_STRUCT%%\nconst pi : f32 = 3.1415926;\n@fragment\nfn main(input : FragmentInput) -> FragmentOutput\n{\nvar pixelSize : vec2<f32> = c3_getPixelSize(textureFront);\nvar tex = c3_srcOriginToNorm(input.fragUV);\ntex = tex * 2.0 - 1.0;\nvar d : f32 = length(tex);\nvar a = atan2(tex.y, tex.x);\nd = d + sin((d * 2.0 * pi) * shaderParams.freq / (pixelSize.x * 750.0) + (c3Params.seconds * shaderParams.speed)) * shaderParams.amp * (pixelSize.x * 750.0);\ntex.x = cos(a) * d;\ntex.y = sin(a) * d;\ntex = (tex + 1.0) / 2.0;\ntex = c3_normToSrcOrigin(tex);\ntex = c3_clampToSrc(tex);\nvar output : FragmentOutput;\noutput.color = textureSample(textureFront, samplerFront, tex);\nreturn output;\n}",
+	blendsBackground: false,
+	usesDepth: false,
+	extendBoxHorizontal: 50,
+	extendBoxVertical: 50,
+	crossSampling: false,
+	mustPreDraw: false,
+	preservesOpaqueness: false,
+	supports3dDirectRendering: false,
+	animated: true,
+	parameters: [["freq",0,"float"],["amp",0,"percent"],["speed",0,"float"]]
+};
 
 }
 
@@ -4156,6 +4186,18 @@ ImagePointCount(){return this.GetImagePointCount()},ImageWidth(){return this.Get
 }
 
 {
+'use strict';{const C3=self.C3;const DOM_COMPONENT_ID="progress-bar";C3.Plugins.progressbar=class ProgressBarPlugin extends C3.SDKDOMPluginBase{constructor(opts){super(opts,DOM_COMPONENT_ID);this.AddElementMessageHandler("click",(sdkInst,e)=>sdkInst._OnClick(e))}Release(){super.Release()}}}{const C3=self.C3;C3.Plugins.progressbar.Type=class ProgressBarType extends C3.SDKTypeBase{constructor(objectClass){super(objectClass)}Release(){super.Release()}OnCreate(){}}}
+{const C3=self.C3;const C3X=self.C3X;const VALUE=0;const MAXIMUM=1;const TOOLTIP=2;const INITIALLY_VISIBLE=3;const ID=4;const CLASS_NAME=5;const DOM_COMPONENT_ID="progress-bar";C3.Plugins.progressbar.Instance=class ProgressBarInstance extends C3.SDKDOMInstanceBase{constructor(inst,properties){super(inst,DOM_COMPONENT_ID);this._value=0;this._max=100;this._title="";this._id="";this._className="";if(properties){this._value=properties[VALUE];this._max=properties[MAXIMUM];this._title=properties[TOOLTIP];
+this.GetWorldInfo().SetVisible(properties[INITIALLY_VISIBLE]);this._id=properties[ID];this._className=properties[CLASS_NAME]}this.CreateElement({"id":this._id,"className":this._className})}Release(){super.Release()}GetElementState(){return{"value":this._value,"max":this._max,"title":this._title}}async _OnClick(e){this.DispatchScriptEvent("click");await this.TriggerAsync(C3.Plugins.progressbar.Cnds.OnClicked)}_SetTooltip(title){if(this._title===title)return;this._title=title;this.UpdateElementState()}_GetTooltip(){return this._title}_SetProgress(x){if(this._value===
+x)return;this._value=x;this.UpdateElementState()}_GetProgress(){return this._value}_SetMaximum(x){if(this._max===x)return;this._max=x;this.UpdateElementState()}_GetMaximum(){return this._max}_SetIndeterminate(){this._max=0;this._value=0;this.UpdateElementState()}Draw(renderer){}SaveToJson(){return{"v":this._value,"m":this._max,"t":this._title,"id":this._id}}LoadFromJson(o){this._value=o["v"];this._max=o["m"];this._title=o["t"];this._id=o["id"];this.UpdateElementState()}GetPropertyValueByIndex(index){switch(index){case VALUE:return this._GetProgress();
+case MAXIMUM:return this._GetMaximum();case TOOLTIP:return this._GetTooltip()}}SetPropertyValueByIndex(index,value){switch(index){case VALUE:this._SetProgress(value);break;case MAXIMUM:this._SetMaximum(value);break;case TOOLTIP:this._SetTooltip(value);break}}GetDebuggerProperties(){const prefix="plugins.progressbar";return[{title:prefix+".name",properties:[{name:prefix+".properties.value.name",value:this._GetProgress(),onedit:v=>this._SetProgress(v)},{name:prefix+".properties.maximum.name",value:this._GetMaximum(),
+onedit:v=>this._SetMaximum(v)}]}]}GetScriptInterfaceClass(){return self.IProgressBarInstance}};const map=new WeakMap;self.IProgressBarInstance=class IProgressBarInstance extends self.IDOMInstance{constructor(){super();map.set(this,self.IInstance._GetInitInst().GetSdkInstance())}set progress(v){C3X.RequireFiniteNumber(v);map.get(this)._SetProgress(v)}get progress(){return map.get(this)._GetProgress()}set maximum(v){C3X.RequireFiniteNumber(v);map.get(this)._SetMaximum(v)}get maximum(){return map.get(this)._GetMaximum()}set tooltip(t){C3X.RequireString(t);
+map.get(this)._SetTooltip(t)}get tooltip(){return map.get(this)._GetTooltip()}setIndeterminate(){map.get(this)._SetIndeterminate()}}}{const C3=self.C3;C3.Plugins.progressbar.Cnds={OnClicked(){return true},CompareProgress(cmp,x){return C3.compare(this._GetProgress(),cmp,x)}}}{const C3=self.C3;C3.Plugins.progressbar.Acts={SetTooltip(title){this._SetTooltip(title)},SetProgress(x){this._SetProgress(x)},SetMaximum(x){this._SetMaximum(x)},SetIndeterminate(){this._SetIndeterminate()}}}
+{const C3=self.C3;C3.Plugins.progressbar.Exps={Progress(){return this._GetProgress()},Maximum(){return this._GetMaximum()}}};
+
+}
+
+{
 'use strict';{const C3=self.C3;C3.Plugins.Text=class TextPlugin extends C3.SDKPluginBase{constructor(opts){super(opts)}Release(){super.Release()}}}{const C3=self.C3;C3.Plugins.Text.Type=class TextType extends C3.SDKTypeBase{constructor(objectClass){super(objectClass)}Release(){super.Release()}OnCreate(){}LoadTextures(renderer){}ReleaseTextures(){}}}
 {const C3=self.C3;const C3X=self.C3X;const TEMP_COLOR_ARRAY=[0,0,0];const TEXT=0;const ENABLE_BBCODE=1;const FONT=2;const SIZE=3;const LINE_HEIGHT=4;const BOLD=5;const ITALIC=6;const COLOR=7;const HORIZONTAL_ALIGNMENT=8;const VERTICAL_ALIGNMENT=9;const WRAPPING=10;const TEXT_DIRECTION=11;const ICON_SET=12;const INITIALLY_VISIBLE=13;const ORIGIN=14;const READ_ALOUD=15;const HORIZONTAL_ALIGNMENTS=["left","center","right"];const VERTICAL_ALIGNMENTS=["top","center","bottom"];const TEXT_DIRECTIONS=["ltr",
 "rtl"];const WORD_WRAP=0;const CHARACTER_WRAP=1;const tempRect=new C3.Rect;const tempQuad=new C3.Quad;const tempColor=new C3.Color;const tempVec2=C3.New(C3.Vector2);const BBCODE_TAG_TO_HTML=new Map([["b","strong"],["i","em"],["s","s"],["u","u"],["iconoffsety",null]]);C3.Plugins.Text.Instance=class TextInstance extends C3.SDKWorldInstanceBase{constructor(inst,properties){super(inst);this._text="";this._enableBBcode=true;this._faceName="Arial";this._ptSize=12;this._lineHeightOffset=0;this._isBold=false;
@@ -4231,35 +4273,46 @@ self.C3_GetObjectRefTable = function () {
 		C3.Plugins.Touch,
 		C3.Plugins.Sprite,
 		C3.Behaviors.shadowcaster,
+		C3.Plugins.progressbar,
 		C3.Plugins.Text,
-		C3.Plugins.System.Cnds.IsPreview,
-		C3.Plugins.Sprite.Acts.SetAnimFrame,
 		C3.Plugins.Touch.Cnds.OnTapGestureObject,
 		C3.Plugins.System.Acts.AddVar,
-		C3.Plugins.Touch.Cnds.OnTapGesture,
 		C3.Plugins.Text.Acts.SetText,
+		C3.Plugins.progressbar.Cnds.IsVisible,
+		C3.Plugins.progressbar.Acts.SetProgress,
 		C3.Plugins.System.Cnds.CompareVar,
-		C3.Plugins.Text.Acts.SetFontColor
+		C3.Plugins.System.Acts.SetVar,
+		C3.Plugins.progressbar.Acts.SetMaximum,
+		C3.Plugins.Text.Acts.SetFontColor,
+		C3.Plugins.Touch.Cnds.OnTouchStart,
+		C3.Plugins.Sprite.Acts.SetEffectEnabled,
+		C3.Plugins.Touch.Cnds.OnTouchEnd
 	];
 };
 self.C3_JsPropNameTable = [
 	{Тач: 0},
 	{Тень: 0},
 	{Спрайт: 0},
+	{Переменная1: 0},
+	{Indicatorr: 0},
 	{Текст: 0},
 	{Текст2: 0},
-	{League: 0},
-	{Спрайт2: 0},
-	{Money: 0}
+	{Текст3: 0},
+	{Коунтер: 0},
+	{Лига: 0},
+	{Coins: 0},
+	{Counter: 0}
 ];
 
 self.InstanceType = {
 	Тач: class extends self.IInstance {},
 	Спрайт: class extends self.ISpriteInstance {},
+	Indicatorr: class extends self.IProgressBarInstance {},
 	Текст: class extends self.ITextInstance {},
 	Текст2: class extends self.ITextInstance {},
-	League: class extends self.ITextInstance {},
-	Спрайт2: class extends self.ISpriteInstance {}
+	Текст3: class extends self.ITextInstance {},
+	Коунтер: class extends self.ITextInstance {},
+	Лига: class extends self.ITextInstance {}
 }
 }
 
@@ -4360,15 +4413,20 @@ function or(l, r)
 }
 
 self.C3_ExpressionFuncs = [
-		() => 0,
 		() => 1,
 		p => {
 			const v0 = p._GetNode(0).GetVar();
 			return () => v0.GetValue();
 		},
-		() => 25,
+		() => 11,
+		() => 0,
+		() => 10,
+		() => -717743141684223,
 		() => "Gold league",
-		() => -717743141684223
+		() => 21,
+		() => -41576615935,
+		() => "Diamont league",
+		() => "Выпуклость"
 ];
 
 
